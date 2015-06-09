@@ -13,7 +13,6 @@
 ;;
 
 ;;; Code:
-
 (defvar cfdg-mode-map nil)
 (defvar cfdg-mode-syntax-table nil)
 (defvar cfdg-mode-font-lock-defaults nil)
@@ -25,37 +24,41 @@
       (let ((st (make-syntax-table)))
         (modify-syntax-entry ?/ ". 124b" st)
         (modify-syntax-entry ?* ". 23" st)
-        (modify-syntax-entry ?# "< b")
+        (modify-syntax-entry ?# "< b" st)
         (modify-syntax-entry ?\n "> b" st)
         st))
 
 (setq cfdg-mode-font-lock-defaults
-      `(("\\(shape\\|include\\|startshape\\|rule\\|background\\)[ \011]" 1 font-lock-keyword-face)
-        ("include[ \011]+\\([a-zA-Z0-9\-_\.]+\\)" 1 font-lock-type-face)
+      `(("\\(startshape\\|shape\\|rule\\|import\\|loop\\)[ \t]" 1 font-lock-keyword-face)
+        ("import[ \t]+\\([a-zA-Z0-9\-_\.]+\\)" 1 font-lock-type-face)
+        ("\\(shape\\|startshape\\)[ \t]+\\([a-zA-Z0-9_]+\\)" 2 font-lock-function-name-face)
+        ("rule[ \t]+\\([0-9\.]+\\)" 1 font-lock-constant-face)
+        ("loop[ \t]+\\([0-9]+\\)" 1 font-lock-constant-face)
         ("\\(CIRCLE\\|SQUARE\\|TRIANGLE\\)" 1 font-lock-builtin-face)
-        ("\\(rule\\|startshape\\)[ \011]+\\([a-zA-Z0-9_]+\\)" 2 font-lock-function-name-face)
-        ("\\(rule\\|startshape\\)[ \011]+\\([a-zA-Z0-9_]+\\)[ \011]+\\([0-9\.]+\\)" 3 font-lock-constant-face)
-        ("\\([a-zA-Z0-9_]+\\)[ \011]*\\({\\|\\[\\)" 1 font-lock-function-name-face)
-        ("\\(sat\\|size\\|rotate\\|flip\\|skew\\|hue\\|saturation\\|brightness\\|alpha\\|x\\|y\\|z\\|s\\|r\\|f\\|h\\|b\\|a\\)[ \011]+\\([-]*[0-9]+\\)" 1 font-lock-variable-name-face)
-        ("\\([0-9]+[ \011]*\\*\\)[ \011]*{" 1 font-lock-constant-face)))
+        ("\\([a-zA-Z0-9_]+\\)[ \t]*\\({\\|\\[\\)" 1 font-lock-function-name-face)
+        ("\\(\\[\\|\\]\\|{\\|}\\)" 1 font-lock-comment-face)
+        ("\\(sat\\|size\\|rotate\\|flip\\|skew\\|hue\\|saturation\\|brightness\\|alpha\\|x\\|y\\|z\\|s\\|r\\|f\\|h\\|b\\|a\\)[ \t]+\\([-]*[0-9\.]+\\)"
+         (1 font-lock-variable-name-face)
+         (2 font-lock-constant-face))))
 
 (define-derived-mode cfdg-mode fundamental-mode "CFDG"
   "major mode context free art"
-  (setq font-lock-defaults '(cfdg-mode-font-lock-defaults)))
+  (set (make-local-variable 'font-lock-defaults) '(cfdg-mode-font-lock-defaults)))
 
 (defun cfdg-render ()
   (interactive)
-  (let* ((size 500)
+  (let ((size "500")
          (src (buffer-string))
          (tmp (make-temp-file "cfdg-"))
-         (output (make-temp-file "cfdg-output-"))
-         (cmd (format "cfdg -s %s %s %s" size tmp output)))
+         (output (make-temp-file "cfdg-output-")))
     (with-temp-file tmp (insert src))
-    (shell-command-to-string cmd)
-    (with-current-buffer (get-buffer-create "*cfdg-output*")
-      (erase-buffer)
-      (insert-image (create-image output)))
-    (display-buffer "*cfdg-output*")))
+    (with-temp-buffer
+      (if (= 0 (call-process "cfdg" nil (current-buffer) nil "-s" size tmp output))
+          (with-current-buffer (get-buffer-create "*cfdg-output*")
+            (erase-buffer)
+            (insert-image (create-image output))
+            (display-buffer (current-buffer)))
+        (message (buffer-string))))))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.cfdg\\'" . cfdg-mode))
